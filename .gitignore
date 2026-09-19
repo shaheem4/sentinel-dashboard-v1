@@ -1,4 +1,6 @@
 node_modules/
+.venv/
+__pycache__/
 .env
 backend/mock_data/sensor_log.csv
 backend/mock_data/latest_capture.jpg

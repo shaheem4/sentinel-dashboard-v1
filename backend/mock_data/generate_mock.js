@@ -1,37 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
-function randomStatus() {
-    const r = Math.random();
-
-    if (r > 0.95) return "CRITICAL";
-    if (r > 0.85) return "WATCH";
-
-    return "NORMAL";
-}
-
-function generateRow() {
-    const now = new Date().toISOString();
-
-    return {
-        timestamp: now,
-        vibration: (Math.random() * 0.3).toFixed(4),
-        acoustic: (40 + Math.random() * 30).toFixed(1),
-        pressure: (1010 + Math.random() * 10).toFixed(1),
-        temperature: (18 + Math.random() * 8).toFixed(1),
-        strain: (800 + Math.random() * 150).toFixed(1),
-        status: randomStatus()
-    };
-}
+const backendPath = path.join(__dirname, '..');
+const pipelinePath = path.join(backendPath, 'sensor_pipeline.py');
+const pythonPath = fs.existsSync(path.join(backendPath, '.venv', 'bin', 'python'))
+    ? path.join(backendPath, '.venv', 'bin', 'python')
+    : 'python3';
 
 const filePath = path.join(__dirname, 'sensor_log.csv');
 const cameraPath = path.join(__dirname, 'latest_capture.jpg');
 
 if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(
-        filePath,
-        "timestamp,vibration,acoustic,pressure,temperature,strain,status\n"
-    );
+    fs.writeFileSync(filePath, "timestamp,vibration,acoustic,pressure,temperature,strain,status\n");
 }
 
 // Generate a minimal valid JPEG placeholder if no camera image exists.
@@ -74,13 +55,30 @@ if (!fs.existsSync(cameraPath)) {
     console.log('Created placeholder camera image');
 }
 
-setInterval(() => {
-    const row = generateRow();
+function runPipeline(mode) {
+    const result = spawnSync(pythonPath, [pipelinePath, '--mode', mode], {
+        cwd: backendPath,
+        encoding: 'utf8'
+    });
 
-    const line =
-        `${row.timestamp},${row.vibration},${row.acoustic},${row.pressure},${row.temperature},${row.strain},${row.status}\n`;
+    if (result.error || result.status !== 0) {
+        console.error(result.stderr || result.error?.message || 'Sensor pipeline failed');
+        process.exitCode = 1;
+        return;
+    }
 
-    fs.appendFileSync(filePath, line);
+    process.stdout.write(result.stdout);
+}
 
-    console.log("Wrote:", line.trim());
-}, 2000);
+if (process.env.SENTINEL_DEMO === '1') {
+    const result = spawnSync(pythonPath, [pipelinePath, '--demo'], {
+        cwd: backendPath,
+        encoding: 'utf8'
+    });
+    process.stdout.write(result.stdout || '');
+    process.stderr.write(result.stderr || '');
+    process.exitCode = result.status || 0;
+} else {
+    runPipeline('normal');
+    setInterval(() => runPipeline('normal'), 2000);
+}

@@ -31,8 +31,8 @@ function readLatestRow() {
         .trim()
         .split('\n');
 
-    const headers = data[0].split(',');
-    const lastLine = data[data.length - 1].split(',');
+    const headers = data[0].split(',').map(header => header.trim());
+    const lastLine = data[data.length - 1].split(',').map(value => value.trim());
 
     const row = {};
 
@@ -84,13 +84,13 @@ app.get('/api/events', (req, res) => {
             .trim()
             .split('\n');
 
-        const headers = data[0].split(',');
+        const headers = data[0].split(',').map(header => header.trim());
 
         const rows = data
             .slice(1)
             .slice(-20)
             .map(line => {
-                const values = line.split(',');
+                const values = line.split(',').map(value => value.trim());
                 const obj = {};
 
                 headers.forEach((header, index) => {
